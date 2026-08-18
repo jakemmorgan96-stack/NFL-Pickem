@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Pool — NFL Pick'Em</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page-plane:     #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --good-text:      #006300;
+    --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100; --series-5: #e87ba4;
+    --status-good: #0ca30c; --status-warning: #fab219; --status-serious: #ec835a; --status-critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1: #1a1a19; --page-plane: #0d0d0d; --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
+      --gridline: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10); --good-text: #0ca30c;
+      --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500; --series-5: #d55181;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-1: #1a1a19; --page-plane: #0d0d0d; --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
+    --gridline: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10); --good-text: #0ca30c;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500; --series-5: #d55181;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body.viz-root { background: var(--page-plane); color: var(--text-primary); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; padding: 16px 12px 60px; }
+  .wrap { max-width: 760px; margin: 0 auto; }
+
+  header.top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom: 14px; flex-wrap: wrap; }
+  h1 { font-size: 20px; margin: 0 0 3px; letter-spacing: -0.01em; }
+  .subtitle { color: var(--text-secondary); font-size: 12.5px; margin: 0; display:flex; align-items:center; gap:6px; }
+  .dot { width:7px; height:7px; border-radius:50%; display:inline-block; background: var(--text-muted); }
+  .dot.live { background: var(--status-good); }
+  button.btn { background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border); border-radius: 8px; padding: 7px 12px; font-size: 12.5px; cursor: pointer; white-space:nowrap; font-family: inherit; }
+  button.btn:hover { background: var(--page-plane); }
+  button.btn.primary { background: var(--series-1); color: #fff; border-color: transparent; }
+  button.btn.primary:hover { filter: brightness(1.06); }
+  button.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  button.btn.small { padding: 4px 9px; font-size: 11.5px; }
+  button.btn.danger { color: var(--status-critical); }
+
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 18px 18px 20px; margin-bottom: 16px; }
+  .card h2 { font-size: 15px; margin: 0 0 3px; }
+  .card .cardsub { color: var(--text-secondary); font-size: 12.5px; margin: 0 0 14px; }
+
+  nav.tabs { display:flex; gap:6px; margin-bottom: 16px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 4px; }
+  nav.tabs button { flex:1; background: transparent; border: none; border-radius: 7px; padding: 9px 8px; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); cursor:pointer; font-family: inherit; }
+  nav.tabs button.active { background: var(--series-1); color: #fff; }
+  .tabpanel { display:none; }
+  .tabpanel.active { display:block; }
+
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+  @media (max-width: 640px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+  .tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 14px 12px; }
+  .tile .label { font-size: 11.5px; color: var(--text-secondary); margin-bottom: 6px; }
+  .tile .value { font-size: 24px; font-weight: 600; }
+  .tile .delta { font-size: 11.5px; margin-top: 4px; color: var(--text-muted); }
+  .tile .delta.good { color: var(--good-text); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--gridline); vertical-align: middle; font-variant-numeric: tabular-nums; }
+  th { color: var(--text-secondary); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.02em; }
+  td.num, th.num { text-align: right; }
+  tr:last-child td { border-bottom: none; }
+  .rank1 td:first-child { font-weight: 700; }
+  .swatch { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:7px; vertical-align:middle; }
+  .rankpill { display:inline-block; font-size: 10px; font-weight: 700; color: var(--series-1); background: color-mix(in srgb, var(--series-1) 14%, transparent); border-radius: 5px; padding: 1px 5px; margin-right: 6px; vertical-align: middle; }
+
+  details.week { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
+  details.week summary { cursor: pointer; padding: 12px 14px; font-size: 13.5px; font-weight: 600; display:flex; align-items:center; justify-content:space-between; gap: 10px; list-style: none; }
+  details.week summary::-webkit-details-marker { display: none; }
+  details.week summary .wk-right { font-weight: 400; color: var(--text-secondary); font-size: 12px; display:flex; gap:8px; align-items:center; flex-wrap: wrap; }
+  details.week .weekbody { padding: 0 14px 14px; }
+  .votegrid { font-size: 12px; }
+  .votegrid .count { color: var(--text-muted); font-size: 11px; }
+  .chkwrap { display:flex; align-items:center; gap:6px; font-size: 12px; color: var(--text-secondary); white-space:nowrap; }
+  select.resSel { font-size: 12px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); font-family: inherit; }
+
+  .chartfig { margin: 0; }
+  .barrow { display:flex; align-items:center; gap: 10px; margin-bottom: 10px; }
+  .barrow .bname { width: 92px; font-size: 12.5px; flex-shrink:0; text-align:right; }
+  .barrow .btrack { flex:1; position:relative; height: 20px; background: var(--page-plane); border-radius: 4px; }
+  .barrow .bfill { position:absolute; top:0; left:0; height: 20px; border-radius: 4px; }
+  .barrow .bval { font-size: 12px; font-weight: 600; margin-left: 6px; width: 62px; line-height: 1.35; }
+  .barrow .bval .wtd { display: block; font-size: 10px; font-weight: 500; color: var(--text-muted); }
+  .baseline-mark { position:absolute; top:-4px; bottom:-4px; width:1px; background: var(--baseline); }
+  .baseline-label { position:absolute; top: -18px; font-size: 10px; color: var(--text-muted); white-space:nowrap; transform: translateX(-50%); }
+  svg.linechart { width: 100%; height: auto; overflow: visible; }
+  .gridline { stroke: var(--gridline); stroke-width: 1; }
+  .axislabel { fill: var(--text-muted); font-size: 10px; font-family: system-ui, sans-serif; }
+  .linepath { fill: none; stroke: var(--series-1); stroke-width: 2; }
+  .areafill { fill: color-mix(in srgb, var(--series-1) 14%, transparent); stroke: none; }
+  .pt { fill: var(--surface-1); stroke: var(--series-1); stroke-width: 2; }
+  .tooltip { position: absolute; pointer-events: none; background: var(--text-primary); color: var(--surface-1); font-size: 11.5px; padding: 5px 9px; border-radius: 6px; white-space: nowrap; transform: translate(-50%, -130%); opacity: 0; transition: opacity 0.1s; z-index: 5; }
+  .charthost { position: relative; }
+  details.tv summary { cursor:pointer; font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
+  .instructions ol, .instructions ul { margin: 6px 0 0; padding-left: 20px; font-size: 13px; color: var(--text-secondary); }
+  .instructions li { margin-bottom: 6px; }
+  .instructions p { font-size: 13px; color: var(--text-secondary); margin: 0 0 8px; }
+  code.inline { background: var(--page-plane); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 12px; }
+  footer.note { font-size: 12px; color: var(--text-muted); text-align:center; margin-top: 20px; }
+  .mutednote { font-size: 12px; color: var(--text-muted); }
+
+  /* Submit-picks specific */
+  .friendrow, .weekrow { display:flex; gap:8px; flex-wrap:wrap; margin-bottom: 12px; }
+  .pickbtn { flex:1; min-width: 64px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 9px; padding: 9px 6px; font-size: 12.5px; font-weight: 600; color: var(--text-primary); cursor:pointer; font-family: inherit; }
+  .pickbtn.active { background: var(--series-1); color:#fff; border-color: transparent; }
+  input.weekinput { width: 90px; padding: 8px 10px; font-size: 13px; border-radius: 8px; border: 1px solid var(--border); background: var(--page-plane); color: var(--text-primary); font-family: inherit; }
+
+  .counterbar { position: sticky; top: 8px; z-index: 4; display:flex; gap:10px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; font-size: 12px; flex-wrap: wrap; align-items:center; }
+  .counterbar .cchip { display:flex; align-items:center; gap:5px; padding: 3px 9px; border-radius: 999px; background: var(--page-plane); border: 1px solid var(--border); font-weight:600; }
+  .counterbar .cchip.love { color: #b9345a; }
+  .counterbar .cchip.like { color: var(--series-1); }
+  .counterbar .cchip.full { outline: 1.5px solid var(--status-critical); }
+  .counterbar .spacer { flex:1; }
+
+  .gamecard { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+  .gamecard .gtitle { font-size: 13.5px; font-weight: 600; margin-bottom: 8px; display:flex; justify-content:space-between; align-items:baseline; }
+  .gamecard .gtitle .gspread { font-weight: 400; color: var(--text-muted); font-size: 11.5px; }
+  .sidebtns { display:flex; gap:8px; margin-bottom: 8px; }
+  .sidebtn { flex:1; background: var(--page-plane); border: 1px solid var(--border); border-radius: 8px; padding: 9px 6px; font-size: 12.5px; font-weight: 600; cursor:pointer; font-family: inherit; color: var(--text-primary); }
+  .sidebtn.active { background: var(--series-3); color:#fff; border-color: transparent; }
+  .confbtns { display:flex; gap:6px; }
+  .confbtn { flex:1; background: var(--surface-1); border: 1px solid var(--border); border-radius: 7px; padding: 6px; font-size: 11.5px; font-weight: 600; cursor:pointer; font-family: inherit; color: var(--text-secondary); }
+  .confbtn.active.lean { background: var(--text-muted); color:#fff; border-color: transparent; }
+  .confbtn.active.like { background: var(--series-1); color:#fff; border-color: transparent; }
+  .confbtn.active.love { background: #d5487a; color:#fff; border-color: transparent; }
+  .confbtn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .clearbtn { background: none; border: none; color: var(--text-muted); font-size: 11px; cursor: pointer; margin-top: 6px; padding: 0; text-decoration: underline; }
+  .submitbar { position: sticky; bottom: 8px; display:flex; gap:8px; align-items:center; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-top: 14px; }
+  .submitstatus { font-size: 12px; color: var(--text-secondary); }
+
+  .adminlist { margin-top: 10px; }
+  .adminrow { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; padding: 9px 0; border-bottom: 1px solid var(--gridline); font-size: 12.5px; }
+  .adminrow:last-child { border-bottom: none; }
+  .adminrow .kickoffwrap { display:flex; gap:6px; align-items:center; }
+  input.kickoffinput { padding: 6px 8px; font-size: 12px; border-radius: 7px; border: 1px solid var(--border); background: var(--page-plane); color: var(--text-primary); font-family: inherit; }
+  textarea.gamesinput { width: 100%; min-height: 120px; padding: 8px 10px; font-size: 12.5px; border-radius: 8px; border: 1px solid var(--border); background: var(--page-plane); color: var(--text-primary); font-family: monospace; }
+  input.authinput { padding: 8px 10px; font-size: 13px; border-radius: 8px; border: 1px solid var(--border); background: var(--page-plane); color: var(--text-primary); font-family: inherit; }
+  .lockednote { font-size: 11.5px; color: var(--status-critical); margin-bottom: 6px; }
+  .kickoffnote { font-size: 11.5px; color: var(--text-muted); margin-bottom: 6px; }
+
+  .setupwrap { max-width: 640px; margin: 40px auto; }
+</style>
+</head>
+<body class="viz-root">
+<div class="wrap" id="app" style="display:none;">
+
+  <header class="top">
+    <div>
+      <h1 id="poolTitle">The Pool — NFL Pick'Em</h1>
+      <p class="subtitle"><span class="dot" id="connDot"></span><span id="connText">Connecting…</span></p>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn" id="themeToggle" type="button">🌓</button>
+      <button class="btn" id="backupBtn" type="button">⬇ Backup JSON</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button data-tab="submit" class="active" type="button">Submit Picks</button>
+    <button data-tab="tracker" type="button">Tracker</button>
+    <button data-tab="admin" type="button">Admin</button>
+  </nav>
+
+  <!-- ================= SUBMIT PICKS TAB ================= -->
+  <div class="tabpanel active" id="tab-submit">
+    <div class="card">
+      <h2>Who are you?</h2>
+      <div class="friendrow" id="friendRow"></div>
+      <h2 style="margin-top:6px;">Week</h2>
+      <div class="weekrow">
+        <input type="number" class="weekinput" id="weekInput" min="1" max="18" value="1">
+      </div>
+      <p class="cardsub" id="pickIntro">Pick your side on any games you have a real opinion on, then tag it Lean / Like / Love. Love is capped at 2, Like at 3 — the buttons lock once you hit the cap.</p>
+    </div>
+
+    <div class="counterbar" id="counterBar"></div>
+
+    <div id="gamesHost"></div>
+
+    <div class="submitbar">
+      <button class="btn primary" id="submitPicksBtn" type="button" style="flex:1;">Submit my picks</button>
+    </div>
+    <p class="submitstatus" id="submitStatus"></p>
+  </div>
+
+  <!-- ================= TRACKER TAB ================= -->
+  <div class="tabpanel" id="tab-tracker">
+    <div class="tiles" id="tiles"></div>
+
+    <div class="card">
+      <h2>How we pick our 5</h2>
+      <p class="cardsub">Confidence-weighted group consensus, with a rotating tiebreaker captain.</p>
+      <div class="instructions">
+        <ol>
+          <li>Before kickoff, everyone submits independently on the Submit Picks tab — nobody can see anyone else's picks until they're in. Love is capped at 2, Like at 3, Lean is unlimited.</li>
+          <li>Every game gets a <strong>weighted score</strong>: add up the confidence points (Love=3, Like=2, Lean=1) on its more-popular side. Conviction counts, not just headcount.</li>
+          <li>Games get ranked by weighted score and the <strong>top 5</strong> (marked <span class="rankpill">#1</span>) are the suggested entry.</li>
+          <li>If several are tied at the cutoff, that week's <strong>Tiebreaker Captain</strong> — rotating round-robin all season — makes the call. Tick <strong>selected</strong> on exactly 5 games below.</li>
+          <li>Don't auto-trust unanimous picks — group agreement often just tracks the popular side, which the spread already prices in.</li>
+          <li>After games finish, set each selected game's result below — everything recalculates live for everyone, instantly.</li>
+        </ol>
+      </div>
+      <details class="tv" style="margin-top:10px;">
+        <summary>View tiebreaker captain rotation (Weeks 1–18)</summary>
+        <table id="captainTable" style="margin-top:8px;"></table>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>Leaderboard — who's actually picking well</h2>
+      <p class="cardsub">Bars are straight win % (bars sorted by this) — every pick counts the same. "wtd" is weighted win %, where Love/Like/Lean picks count for 3/2/1 points, so being confident and right pulls it up more than being confident and wrong pulls it down. Dashed line marks the ~52.4% break-even most books require at standard -110 odds.</p>
+      <div class="charthost" id="barChartHost"></div>
+      <details class="tv"><summary>View as table</summary><table id="leaderTable" style="margin-top:8px;"></table></details>
+    </div>
+
+    <div class="card">
+      <h2>Season trend — the pool's entry record</h2>
+      <p class="cardsub">Cumulative ATS win % of the actual 5-pick entry, week by week.</p>
+      <div class="charthost" id="lineChartHost"></div>
+      <details class="tv"><summary>View as table</summary><table id="trendTable" style="margin-top:8px;"></table></details>
+    </div>
+
+    <div class="card">
+      <h2>Weekly log</h2>
+      <p class="cardsub">Every game voted on, the weighted consensus, which 5 were selected, and the result. Grading (selected + result) requires signing in as admin on the Admin tab.</p>
+      <div id="weeksHost"></div>
+    </div>
+  </div>
+
+  <!-- ================= ADMIN TAB ================= -->
+  <div class="tabpanel" id="tab-admin">
+    <div class="card" id="adminSignedOut">
+      <h2>Admin sign-in</h2>
+      <p class="cardsub">Setting up games, setting kickoff locks, and grading results is restricted to the pool admin. Sign in below — everyone else can still submit picks and view the tracker without this.</p>
+      <div class="weekrow" style="align-items:center;">
+        <input type="email" class="authinput" id="adminEmail" placeholder="Email" autocomplete="username" style="width:180px;">
+        <input type="password" class="authinput" id="adminPassword" placeholder="Password" autocomplete="current-password" style="width:140px;">
+        <button class="btn primary" id="adminSignInBtn" type="button">Sign in</button>
+      </div>
+      <p class="submitstatus" id="adminAuthStatus"></p>
+    </div>
+
+    <div id="adminSignedIn" style="display:none;">
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+          <div>
+            <h2>Set up a week's games</h2>
+            <p class="cardsub">Paste each week's matchups here before sharing the "Submit Picks" tab with the group. One line per game, formatted exactly like the example.</p>
+          </div>
+          <button class="btn small" id="adminSignOutBtn" type="button">Sign out</button>
+        </div>
+        <div class="weekrow">
+          <label class="mutednote">Week</label>
+          <input type="number" class="weekinput" id="adminWeekInput" min="1" max="18" value="1">
+        </div>
+        <textarea class="gamesinput" id="adminGamesInput" placeholder="KC @ BAL (BAL -2.5)
+DAL @ PHI (PHI -3.5)
+SF @ SEA (SF -1.5)"></textarea>
+        <p class="mutednote" style="margin-top:6px;">Format: <code class="inline">AWAY @ HOME (FAVORITE -SPREAD)</code>. Re-saving a game that already exists just updates its spread — existing picks and results are left alone. Existing games not repeated here are left as-is (delete them individually below if a matchup changed).</p>
+        <button class="btn primary" id="saveGamesBtn" type="button" style="margin-top:10px;">Save this week's games</button>
+        <p class="submitstatus" id="adminStatus"></p>
+        <p class="mutednote" style="margin-top:14px;">Set a <strong>kickoff time</strong> per game below to lock picks on it automatically — nobody (including you, unsigned-in) can submit or change a vote on that game once its kickoff time passes. Leave it blank for no lock.</p>
+        <div class="adminlist" id="adminList"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="note">Firestore-backed — every submission and edit saves live for the whole group, no export step needed. <code class="inline">FIREBASE_CONFIG</code> and <code class="inline">POOL</code> are set near the top of the file.</footer>
+</div>
+
+<div class="setupwrap viz-root" id="setupOnly" style="display:none;">
+  <div class="card">
+    <h2>Connect this page to a shared database</h2>
+    <p class="cardsub">This page needs a free Firebase project before it'll do anything — that's what lets all 5 of you submit from your own phones and see the same live results.</p>
+    <div class="instructions">
+      <ol>
+        <li>Go to <strong>console.firebase.google.com</strong>, sign in with any Google account, and click <strong>Add project</strong>. Name it anything (e.g. "the-pool"). You can skip Google Analytics.</li>
+        <li>In the new project, open <strong>Build → Firestore Database → Create database</strong>. Choose a region close to you, and start in <strong>test mode</strong> (open for 30 days — see the security-rules note below for what to do after).</li>
+        <li>Click the <strong>⚙ gear icon → Project settings</strong>, scroll to "Your apps", click the <strong>&lt;/&gt; (web)</strong> icon, and register an app (nickname doesn't matter, skip hosting). It'll show you a <code class="inline">firebaseConfig</code> object with <code class="inline">apiKey</code>, <code class="inline">projectId</code>, etc.</li>
+        <li>Copy that whole object into <code class="inline">FIREBASE_CONFIG</code> near the top of this file's script, save, and re-upload/re-deploy the file (see hosting note below).</li>
+        <li>Open <strong>Build → Authentication → Get started</strong>, click the <strong>Email/Password</strong> provider and enable it. Then go to the <strong>Users</strong> tab → <strong>Add user</strong> and create one login (your own email + a password) — this is your personal admin login for this site. Don't share it with the group.</li>
+        <li>In Firestore, open the <strong>Rules</strong> tab and set:
+          <pre style="background:var(--page-plane); border:1px solid var(--border); border-radius:8px; padding:8px; font-size:11.5px; overflow-x:auto;">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /games/{gameId} {
+      allow read: if true;
+      allow create, delete: if request.auth != null;
+      allow update: if request.auth != null
+        || (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes']) &&
+          (!('kickoffAt' in resource.data) || request.time < timestamp.value(resource.data.kickoffAt))
+        );
+    }
+  }
+}</pre>
+          then click <strong>Publish</strong>. Anyone can read the tracker and submit picks (until a game's kickoff time), but only someone signed in with the admin login from the step above can set up games, delete them, set kickoff times, or grade results. Still a good idea not to share the config or URL publicly.
+        </li>
+        <li><strong>Hosting:</strong> Firebase only gives you the database — this HTML file still needs a real <code class="inline">https://</code> URL so your friends' phones can open it (a file sitting on your device only works for you). Easiest free option: create a <strong>GitHub</strong> account, make a new repository, upload this file renamed to <code class="inline">index.html</code> (repo page → Add file → Upload files, works from a phone browser), then go to <strong>Settings → Pages</strong> in that repo, set source to the main branch, and save. GitHub gives you a URL like <code class="inline">https://yourname.github.io/reponame/</code> within a minute or two — that's the link everyone uses.</li>
+        <li>Free tier note: Firestore's free "Spark" plan (no credit card needed) allows far more reads/writes per day than a 5-person weekly pool will ever use.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+/* ==CONFIG_START== */
+// Paste the firebaseConfig object from Firebase console → Project settings → your web app.
+const FIREBASE_CONFIG = {
+  "apiKey": "AIzaSyCeCkkYwSq6hSI03b__qDKXoXe7q4KG1iY",
+  "authDomain": "nfl-pickem-5dd26.firebaseapp.com",
+  "projectId": "nfl-pickem-5dd26",
+  "storageBucket": "nfl-pickem-5dd26.firebasestorage.app",
+  "messagingSenderId": "44260488368",
+  "appId": "1:44260488368:web:b611e2cca979654b897775"
+};
+// Firebase JS SDK version used for the CDN import below — bump both lines in
+// initFirebase() together if you ever need a newer version.
+const FIREBASE_SDK_VERSION = "10.7.1";
+/* ==CONFIG_END== */
+
+/* ==POOL_START== */
+// Edit friend names here. Keep the 5 ids (p1..p5) — just change the `name` values.
+const POOL = {
+  "poolName": "The Pool — NFL Pick'Em",
+  "friends": [
+    { "id": "p1", "name": "Carter" },
+    { "id": "p2", "name": "Chase" },
+    { "id": "p3", "name": "Vazquez" },
+    { "id": "p4", "name": "Jarrid" },
+    { "id": "p5", "name": "Jake" }
+  ],
+  "seasonWeeksPlanned": 18
+};
+/* ==POOL_END== */
+
+const DATA = { weeks: [] }; // populated live from Firestore
+const SERIES_COLORS = ["var(--series-1)","var(--series-2)","var(--series-3)","var(--series-4)","var(--series-5)"];
+const BREAKEVEN = 52.4;
+let openWeeks = null;
+let db = null, fb = null;
+let auth = null, authFns = null, isAdmin = false;
+
+/* ---------------- pure helpers (unchanged math from the standalone version) ---------------- */
+function friendColor(idx){ return SERIES_COLORS[idx % SERIES_COLORS.length]; }
+function friendById(id){ return POOL.friends.find(f => f.id === id); }
+function normVote(v){ if (v == null) return null; if (typeof v === "string") return { side: v, weight: 1 }; return v; }
+
+function tally(game){
+  const weighted = {}, raw = {};
+  Object.values(game.votes || {}).forEach(v0 => {
+    const v = normVote(v0);
+    if (!v) return;
+    weighted[v.side] = (weighted[v.side]||0) + v.weight;
+    raw[v.side] = (raw[v.side]||0) + 1;
+  });
+  const sides = Object.keys(weighted).sort((a,b) => weighted[b]-weighted[a]);
+  const majoritySide = sides[0];
+  return { weighted, raw, majoritySide, majorityWeighted: weighted[majoritySide]||0, majorityRaw: raw[majoritySide]||0, totalVoters: Object.keys(game.votes||{}).length };
+}
+function pct(w,l){ const d = w+l; return d ? (100*w/d) : null; }
+function fmtPct(v){ return v===null ? "—" : v.toFixed(1)+"%"; }
+function record(w,l,p){ return `${w}-${l}${p?('-'+p):''}`; }
+function matchedWinningSide(game, side){
+  const t = tally(game);
+  const onMajority = side === t.majoritySide;
+  if (game.result === "win") return onMajority;
+  if (game.result === "loss") return !onMajority;
+  return false;
+}
+function captainForWeek(weekNum){ if (!POOL.friends.length) return null; return POOL.friends[(weekNum-1) % POOL.friends.length]; }
+
+function isLocked(g){ return !!g.kickoffAt && new Date(g.kickoffAt).getTime() <= Date.now(); }
+function fmtKickoff(iso){
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleString(undefined, { weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit" });
+}
+function isoToLocalInput(iso){
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const pad = n => String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function slug(s){ return s.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,""); }
+function parseGameLabel(label){
+  const m = String(label||"").trim().match(/^(.+?)\s*@\s*(.+?)\s*\(\s*([A-Za-z0-9.]+)\s*([+-]?\d+(?:\.\d+)?)\s*\)$/);
+  if (!m) return null;
+  const away = m[1].trim(), home = m[2].trim(), favTeam = m[3].trim();
+  let favLine = parseFloat(m[4]);
+  if (isNaN(favLine)) return null;
+  if (favLine > 0) favLine = -favLine;
+  const dogTeam = favTeam.toUpperCase() === away.toUpperCase() ? home : away;
+  const dogLine = Math.abs(favLine);
+  return { matchup: `${away} @ ${home}`, favSide: `${favTeam} ${favLine}`, dogSide: `${dogTeam} +${dogLine}` };
+}
+
+function computeFriendStats(){
+  const stats = {};
+  POOL.friends.forEach(f => stats[f.id] = { all:{w:0,l:0,p:0}, sel:{w:0,l:0,p:0}, captainCount:0, weightSum:0, weightCount:0, wtWin:0, wtLoss:0 });
+  DATA.weeks.forEach(week => {
+    week.games.forEach(game => {
+      POOL.friends.forEach(f => {
+        const v = normVote((game.votes||{})[f.id]);
+        if (!v) return;
+        stats[f.id].weightSum += v.weight; stats[f.id].weightCount += 1;
+        if (!game.result) return;
+        const bucket = game.result === "push" ? "p" : (matchedWinningSide(game, v.side) ? "w" : "l");
+        stats[f.id].all[bucket] += 1;
+        if (bucket === "w") stats[f.id].wtWin += v.weight;
+        else if (bucket === "l") stats[f.id].wtLoss += v.weight;
+        if (game.selected) stats[f.id].sel[bucket] += 1;
+      });
+    });
+    const cap = captainForWeek(week.week);
+    if (cap) stats[cap.id].captainCount += 1;
+  });
+  return stats;
+}
+function computePoolTrend(){
+  let w=0,l=0,p=0; const rows = [];
+  DATA.weeks.slice().sort((a,b)=>a.week-b.week).forEach(week => {
+    week.games.filter(g => g.selected && g.result).forEach(g => { if (g.result==="win") w++; else if (g.result==="loss") l++; else p++; });
+    rows.push({ week: week.week, w, l, p, winPct: pct(w,l) });
+  });
+  return rows;
+}
+function computeOverall(){
+  let w=0,l=0,p=0; const weekPickCounts = [];
+  DATA.weeks.slice().sort((a,b)=>a.week-b.week).forEach(week => {
+    let ww=0, wl=0;
+    week.games.filter(g => g.selected && g.result).forEach(g => { if (g.result==="win"){w++;ww++;} else if (g.result==="loss"){l++;wl++;} else p++; });
+    weekPickCounts.push({ week: week.week, w: ww, l: wl });
+  });
+  return { w, l, p, weekPickCounts };
+}
+function currentStreak(){
+  const results = [];
+  DATA.weeks.slice().sort((a,b)=>a.week-b.week).forEach(week => {
+    week.games.filter(g => g.selected && g.result && g.result !== "push").forEach(g => results.push(g.result));
+  });
+  if (!results.length) return "—";
+  const last = results[results.length-1]; let n=0;
+  for (let i=results.length-1;i>=0;i--){ if (results[i]===last) n++; else break; }
+  return `${n}${last==="win"?"W":"L"}`;
+}
+function bestWeek(weekPickCounts){
+  let best = null;
+  weekPickCounts.forEach(w => { if (w.w+w.l===0) return; if (!best || w.w>best.w || (w.w===best.w && w.l<best.l)) best = w; });
+  return best;
+}
+
+/* ---------------- Firestore (or test-mode mock) wiring ---------------- */
+async function initFirebase(){
+  if (window.__TEST_DB__){
+    db = window.__TEST_DB__; fb = window.__TEST_FB__;
+    auth = window.__TEST_AUTH__ || null; authFns = window.__TEST_AUTHFNS__ || null;
+    return true;
+  }
+  if (!FIREBASE_CONFIG.apiKey) return false;
+  try {
+    const [{ initializeApp }, firestoreMod, authMod] = await Promise.all([
+      import(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-app.js`),
+      import(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-firestore.js`),
+      import(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-auth.js`),
+    ]);
+    const app = initializeApp(FIREBASE_CONFIG);
+    db = firestoreMod.getFirestore(app);
+    fb = firestoreMod;
+    auth = authMod.getAuth(app);
+    authFns = authMod;
+    return true;
+  } catch (e){
+    console.error("Firebase init failed:", e);
+    return false;
+  }
+}
+
+function rebuildDataFromDocs(docs){
+  const weeksMap = {};
+  docs.forEach(d => {
+    const wk = d.week;
+    if (wk == null) return;
+    if (!weeksMap[wk]) weeksMap[wk] = { week: wk, games: [] };
+    weeksMap[wk].games.push({ id: d.id, matchup: d.matchup, spread: d.spread, votes: d.votes||{}, selected: !!d.selected, result: d.result||null, kickoffAt: d.kickoffAt||null });
+  });
+  DATA.weeks = Object.values(weeksMap).sort((a,b)=>a.week-b.week);
+}
+
+function watchGames(cb){
+  const colRef = fb.collection(db, "games");
+  return fb.onSnapshot(colRef, snap => {
+    const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    rebuildDataFromDocs(docs);
+    cb();
+  }, err => {
+    setConn(false, "Live sync error: " + err.message);
+  });
+}
+
+async function saveWeekGames(weekNum, lines){
+  const batch = fb.writeBatch(db);
+  let count = 0, bad = 0;
+  lines.forEach(line => {
+    if (!line.trim()) return;
+    const parsed = parseGameLabel(line);
+    if (!parsed){ bad++; return; }
+    const gid = "w"+weekNum+"-"+slug(parsed.matchup);
+    const ref = fb.doc(db, "games", gid);
+    batch.set(ref, { week: weekNum, matchup: parsed.matchup, spread: parsed.favSide }, { merge: true });
+    count++;
+  });
+  await batch.commit();
+  return { count, bad };
+}
+async function deleteGame(gid){ await fb.deleteDoc(fb.doc(db, "games", gid)); }
+async function setGameField(gid, field, value){ await fb.updateDoc(fb.doc(db, "games", gid), { [field]: value }); }
+
+async function submitPicksToDb(friendId, weekNum, selections){
+  const week = DATA.weeks.find(w => w.week === weekNum) || { games: [] };
+  const batch = fb.writeBatch(db);
+  week.games.forEach(g => {
+    if (isLocked(g)) return; // never touch a game that's already kicked off
+    const ref = fb.doc(db, "games", g.id);
+    const hasVote = g.votes && g.votes[friendId];
+    if (hasVote && !selections[g.id]) batch.update(ref, { ["votes."+friendId]: fb.deleteField() });
+  });
+  Object.entries(selections).forEach(([gid, v]) => {
+    const g = week.games.find(gg => gg.id === gid);
+    if (g && isLocked(g)) return; // never touch a game that's already kicked off
+    const ref = fb.doc(db, "games", gid);
+    batch.update(ref, { ["votes."+friendId]: v });
+  });
+  await batch.commit();
+}
+
+function setConn(ok, text){
+  document.getElementById("connDot").classList.toggle("live", ok);
+  document.getElementById("connText").textContent = text;
+}
+
+/* ---------------- render: tiles ---------------- */
+function renderTiles(){
+  const overall = computeOverall();
+  const winPct = pct(overall.w, overall.l);
+  const streak = currentStreak();
+  const best = bestWeek(overall.weekPickCounts);
+  const tiles = [
+    { label: "Entry record", value: record(overall.w, overall.l, overall.p), delta: `${DATA.weeks.length} week${DATA.weeks.length===1?'':'s'} logged` },
+    { label: "ATS win %", value: fmtPct(winPct), delta: winPct !== null ? (winPct >= BREAKEVEN ? `above ${BREAKEVEN}% break-even` : `below ${BREAKEVEN}% break-even`) : "no graded picks yet", good: winPct !== null && winPct >= BREAKEVEN },
+    { label: "Current streak", value: streak, delta: "selected picks only" },
+    { label: "Best week", value: best ? `${best.w}-${best.l} (Wk ${best.week})` : "—", delta: "most picks correct" },
+  ];
+  document.getElementById("tiles").innerHTML = tiles.map(t => `
+    <div class="tile"><div class="label">${t.label}</div><div class="value">${t.value}</div><div class="delta ${t.good?'good':''}">${t.delta}</div></div>`).join("");
+}
+
+function renderCaptainTable(){
+  let rows = "";
+  for (let w=1; w<=POOL.seasonWeeksPlanned; w++){ const cap = captainForWeek(w); rows += `<tr><td>Week ${w}</td><td>${cap.name}</td></tr>`; }
+  document.getElementById("captainTable").innerHTML = `<thead><tr><th>Week</th><th>Tiebreaker Captain</th></tr></thead><tbody>${rows}</tbody>`;
+}
+
+function renderLeaderboard(){
+  const stats = computeFriendStats();
+  const rows = POOL.friends.map((f,i) => {
+    const s = stats[f.id];
+    const allPct = pct(s.all.w, s.all.l), selPct = pct(s.sel.w, s.sel.l);
+    const wtWinPct = pct(s.wtWin, s.wtLoss);
+    const avgConf = s.weightCount ? (s.weightSum / s.weightCount) : null;
+    return { friend: f, idx: i, s, allPct, selPct, wtWinPct, avgConf };
+  }).sort((a,b) => (b.allPct ?? -1) - (a.allPct ?? -1));
+
+  const beLeft = BREAKEVEN;
+  const bars = rows.map(r => {
+    const w = r.allPct === null ? 0 : r.allPct;
+    return `<div class="barrow">
+      <div class="bname">${r.friend.name}</div>
+      <div class="btrack"><div class="baseline-mark" style="left:${beLeft}%"></div>
+        <div class="bfill" style="width:${w}%; background:${friendColor(r.idx)}" data-tip="${r.friend.name}: ${fmtPct(r.allPct)} straight (${record(r.s.all.w,r.s.all.l,r.s.all.p)}) · ${fmtPct(r.wtWinPct)} weighted"></div></div>
+      <div class="bval">${fmtPct(r.allPct)}<span class="wtd">wtd ${fmtPct(r.wtWinPct)}</span></div></div>`;
+  }).join("");
+  document.getElementById("barChartHost").innerHTML = `<div class="chartfig"><div style="position:relative; height:16px; margin-bottom:6px;"><div class="baseline-label" style="left:${beLeft}%">break-even ${BREAKEVEN}%</div></div>${bars}</div>`;
+  attachTooltips(document.getElementById("barChartHost"), "[data-tip]");
+
+  document.getElementById("leaderTable").innerHTML = `
+    <thead><tr><th>Friend</th><th class="num">All-vote record</th><th class="num">Straight win %</th><th class="num">Weighted pts (W-L)</th><th class="num">Weighted win %</th><th class="num">Selected-pick record</th><th class="num">Selected %</th><th class="num">Avg confidence</th><th class="num">Captain wks</th></tr></thead>
+    <tbody>${rows.map((r,i) => `<tr class="${i===0?'rank1':''}">
+      <td><span class="swatch" style="background:${friendColor(r.idx)}"></span>${r.friend.name}</td>
+      <td class="num">${record(r.s.all.w,r.s.all.l,r.s.all.p)}</td><td class="num">${fmtPct(r.allPct)}</td>
+      <td class="num">${r.s.wtWin}-${r.s.wtLoss}</td><td class="num">${fmtPct(r.wtWinPct)}</td>
+      <td class="num">${record(r.s.sel.w,r.s.sel.l,r.s.sel.p)}</td><td class="num">${fmtPct(r.selPct)}</td>
+      <td class="num">${r.avgConf===null?"—":r.avgConf.toFixed(2)}</td><td class="num">${r.s.captainCount}</td></tr>`).join("")}</tbody>`;
+}
+
+function renderTrend(){
+  const rows = computePoolTrend();
+  const host = document.getElementById("lineChartHost");
+  if (!rows.length){ host.innerHTML = `<p style="color:var(--text-muted); font-size:13px;">No weeks logged yet.</p>`; document.getElementById("trendTable").innerHTML=""; return; }
+  const W=800,H=220,padL=34,padR=12,padT=14,padB=26, plotW=W-padL-padR, plotH=H-padT-padB, n=rows.length;
+  const x = i => padL + (n===1 ? plotW/2 : (i/(n-1))*plotW);
+  const y = v => padT + plotH - ((v??0)/100)*plotH;
+  const gridY=[0,25,50,75,100];
+  const gridLines = gridY.map(v => `<line class="gridline" x1="${padL}" x2="${W-padR}" y1="${y(v)}" y2="${y(v)}"></line><text class="axislabel" x="${padL-6}" y="${y(v)+3}" text-anchor="end">${v}%</text>`).join("");
+  const beY=y(BREAKEVEN);
+  const beLine = `<line x1="${padL}" x2="${W-padR}" y1="${beY}" y2="${beY}" stroke="var(--baseline)" stroke-width="1" stroke-dasharray="3,3"></line><text class="axislabel" x="${W-padR}" y="${beY-4}" text-anchor="end">break-even ${BREAKEVEN}%</text>`;
+  const pathPts = rows.map((r,i)=>`${x(i)},${y(r.winPct??0)}`).join(" L ");
+  const areaPts = `${x(0)},${y(0)} L ${pathPts} L ${x(n-1)},${y(0)} Z`;
+  const dots = rows.map((r,i)=>`<circle class="pt" cx="${x(i)}" cy="${y(r.winPct??0)}" r="4.5" data-tip="Week ${r.week}: ${fmtPct(r.winPct)} (${record(r.w,r.l,r.p)})"></circle>`).join("");
+  const xlabels = rows.map((r,i)=> (i % Math.ceil(n/10||1)===0 || i===n-1) ? `<text class="axislabel" x="${x(i)}" y="${H-6}" text-anchor="middle">Wk ${r.week}</text>` : "").join("");
+  host.innerHTML = `<svg class="linechart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${gridLines}${beLine}<path class="areafill" d="M ${areaPts}"></path><path class="linepath" d="M ${pathPts}"></path>${dots}${xlabels}</svg>`;
+  attachTooltips(host, ".pt");
+  document.getElementById("trendTable").innerHTML = `<thead><tr><th>Week</th><th class="num">Record</th><th class="num">Cumulative ATS %</th></tr></thead><tbody>${rows.map(r=>`<tr><td>Week ${r.week}</td><td class="num">${record(r.w,r.l,r.p)}</td><td class="num">${fmtPct(r.winPct)}</td></tr>`).join("")}</tbody>`;
+}
+
+function badgeFor(){ return ""; }
+function ensureOpenWeeksInit(){ if (openWeeks) return; openWeeks = new Set(); if (DATA.weeks.length) openWeeks.add(Math.max(...DATA.weeks.map(w=>w.week))); }
+
+function renderWeeks(){
+  ensureOpenWeeksInit();
+  const host = document.getElementById("weeksHost");
+  if (!DATA.weeks.length){ host.innerHTML = `<p style="color:var(--text-muted); font-size:13px;">No weeks yet — add games in the Admin tab.</p>`; return; }
+  const weeksSorted = DATA.weeks.slice().sort((a,b)=>b.week-a.week);
+  host.innerHTML = weeksSorted.map(week => {
+    const cap = captainForWeek(week.week);
+    const sorted = week.games.slice().sort((a,b)=>tally(b).majorityWeighted - tally(a).majorityWeighted);
+    const selCount = week.games.filter(g=>g.selected).length;
+    const graded = week.games.filter(g=>g.selected && g.result).length;
+    const wl = week.games.filter(g=>g.selected && (g.result==="win"||g.result==="loss"));
+    const w = wl.filter(g=>g.result==="win").length, l = wl.filter(g=>g.result==="loss").length;
+    const pushCount = week.games.filter(g=>g.selected&&g.result==="push").length;
+    const rows = sorted.map((g,idx) => {
+      const t = tally(g);
+      const votesStr = POOL.friends.map((f,i) => {
+        const v = normVote((g.votes||{})[f.id]);
+        if (!v) return "";
+        const confLabel = v.weight===3?"love":v.weight===2?"like":"lean";
+        return `<span class="swatch" style="background:${friendColor(i)}" title="${f.name}: ${v.side} (${confLabel})"></span>`;
+      }).join("");
+      const otherCount = t.totalVoters - t.majorityRaw;
+      return `<tr data-game="${g.id}">
+        <td>${idx<5?`<span class="rankpill">#${idx+1}</span>`:""}${g.matchup}<br><span style="color:var(--text-muted); font-size:11px;">${g.spread}</span></td>
+        <td class="votegrid">${votesStr}<div class="count">${t.majoritySide||"—"} · raw ${t.majorityRaw}-${otherCount} · weighted ${t.majorityWeighted}</div></td>
+        <td><label class="chkwrap"><input type="checkbox" class="selChk" ${g.selected?'checked':''} ${isAdmin?'':'disabled'}> selected</label></td>
+        <td><select class="resSel" ${isAdmin?'':'disabled'}>
+          <option value="pending" ${!g.result?'selected':''}>Pending</option>
+          <option value="win" ${g.result==='win'?'selected':''}>Win</option>
+          <option value="loss" ${g.result==='loss'?'selected':''}>Loss</option>
+          <option value="push" ${g.result==='push'?'selected':''}>Push</option>
+        </select></td></tr>`;
+    }).join("");
+    const summaryRight = graded===selCount && selCount>0 ? record(w,l,pushCount) : `${graded}/${selCount||0} graded`;
+    return `<details class="week" data-week="${week.week}" ${openWeeks.has(week.week)?'open':''}>
+      <summary><span>Week ${week.week}</span><span class="wk-right"><span>Captain: ${cap.name}</span><span>${summaryRight}</span></span></summary>
+      <div class="weekbody"><table><thead><tr><th>Game</th><th>Votes (hover dots)</th><th>Status</th><th>Result</th></tr></thead><tbody>${rows}</tbody></table></div>
+    </details>`;
+  }).join("");
+  host.querySelectorAll("details.week").forEach(d => {
+    d.addEventListener("toggle", () => { const wk=parseInt(d.dataset.week,10); if (d.open) openWeeks.add(wk); else openWeeks.delete(wk); });
+  });
+}
+
+function attachTooltips(root, selector){
+  const tip = document.getElementById("tooltip");
+  root.querySelectorAll(selector).forEach(el => {
+    el.addEventListener("mousemove", e => { const text = el.getAttribute("data-tip"); if (!text) return; tip.textContent=text; tip.style.left=e.pageX+"px"; tip.style.top=e.pageY+"px"; tip.style.opacity=1; });
+    el.addEventListener("mouseleave", () => { tip.style.opacity=0; });
+  });
+}
+
+/* ---------------- Submit Picks tab ---------------- */
+let currentFriendId = POOL.friends[0] ? POOL.friends[0].id : null;
+let currentWeek = 1;
+let mySelections = {};
+
+function tierCounts(){
+  let love=0, like=0, lean=0;
+  Object.values(mySelections).forEach(v => { if (v.weight===3) love++; else if (v.weight===2) like++; else lean++; });
+  return { love, like, lean };
+}
+function canSetWeight(gid, weight){
+  if (weight !== 3 && weight !== 2) return true;
+  const cap = weight===3 ? 2 : 3;
+  const cur = mySelections[gid];
+  if (cur && cur.weight === weight) return true;
+  const counts = tierCounts();
+  const curCount = weight===3 ? counts.love : counts.like;
+  return curCount < cap;
+}
+function loadMySelectionsFromData(){
+  mySelections = {};
+  const week = DATA.weeks.find(w => w.week === currentWeek);
+  if (!week || !currentFriendId) return;
+  week.games.forEach(g => {
+    const v = normVote((g.votes||{})[currentFriendId]);
+    if (v) mySelections[g.id] = { side: v.side, weight: v.weight };
+  });
+}
+
+function renderFriendRow(){
+  document.getElementById("friendRow").innerHTML = POOL.friends.map(f =>
+    `<button type="button" class="pickbtn ${f.id===currentFriendId?'active':''}" data-friend="${f.id}">${f.name}</button>`).join("");
+}
+
+function renderCounterBar(){
+  const c = tierCounts();
+  document.getElementById("counterBar").innerHTML = `
+    <span class="cchip love ${c.love>=2?'full':''}">❤ Love ${c.love}/2</span>
+    <span class="cchip like ${c.like>=3?'full':''}">👍 Like ${c.like}/3</span>
+    <span class="cchip">〰 Lean ${c.lean}</span>
+    <span class="spacer"></span>`;
+}
+
+function renderGamesHost(){
+  const host = document.getElementById("gamesHost");
+  const week = DATA.weeks.find(w => w.week === currentWeek);
+  const games = week ? week.games.slice().sort((a,b)=> a.matchup.localeCompare(b.matchup)) : [];
+  if (!games.length){
+    host.innerHTML = `<p class="mutednote">No games set up for Week ${currentWeek} yet — ask whoever's running the pool to add them in the Admin tab.</p>`;
+    return;
+  }
+  const parsedCache = {};
+  host.innerHTML = games.map(g => {
+    const parsed = parseGameLabel(`${g.matchup} (${g.spread})`) || { favSide: g.spread, dogSide: g.spread };
+    parsedCache[g.id] = parsed;
+    const sel = mySelections[g.id];
+    const favActive = sel && sel.side === parsed.favSide;
+    const dogActive = sel && sel.side === parsed.dogSide;
+    const w = sel ? sel.weight : null;
+    const locked = isLocked(g);
+    const kickoffLine = g.kickoffAt
+      ? `<div class="${locked?'lockednote':'kickoffnote'}">${locked?'🔒 Locked — kicked off ':'Kicks off '}${fmtKickoff(g.kickoffAt)}</div>`
+      : "";
+    return `<div class="gamecard" data-game="${g.id}">
+      <div class="gtitle"><span>${g.matchup}</span><span class="gspread">${g.spread}</span></div>
+      ${kickoffLine}
+      <div class="sidebtns">
+        <button type="button" class="sidebtn ${favActive?'active':''}" data-side="fav" ${locked?'disabled':''}>${parsed.favSide}</button>
+        <button type="button" class="sidebtn ${dogActive?'active':''}" data-side="dog" ${locked?'disabled':''}>${parsed.dogSide}</button>
+      </div>
+      <div class="confbtns">
+        <button type="button" class="confbtn lean ${w===1?'active lean':''}" data-weight="1" ${locked?'disabled':(!sel?'disabled':'')}>Lean</button>
+        <button type="button" class="confbtn like ${w===2?'active like':''}" data-weight="2" ${locked?'disabled':(!sel||!canSetWeight(g.id,2)?(w===2?'':'disabled'):'')}>Like</button>
+        <button type="button" class="confbtn love ${w===3?'active love':''}" data-weight="3" ${locked?'disabled':(!sel||!canSetWeight(g.id,3)?(w===3?'':'disabled'):'')}>Love</button>
+      </div>
+      ${sel && !locked ? `<button type="button" class="clearbtn" data-clear="1">clear this pick</button>` : ""}
+    </div>`;
+  }).join("");
+
+  host.querySelectorAll(".gamecard").forEach(card => {
+    const gid = card.dataset.game;
+    const parsed = parsedCache[gid];
+    card.querySelectorAll(".sidebtn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        const wantSide = btn.dataset.side === "fav" ? parsed.favSide : parsed.dogSide;
+        const cur = mySelections[gid];
+        if (cur && cur.side === wantSide){ delete mySelections[gid]; }
+        else { mySelections[gid] = { side: wantSide, weight: cur ? cur.weight : 1 }; }
+        renderCounterBar(); renderGamesHost();
+      });
+    });
+    card.querySelectorAll(".confbtn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        const weight = parseInt(btn.dataset.weight, 10);
+        const cur = mySelections[gid];
+        if (!cur) return;
+        if (!canSetWeight(gid, weight)) return;
+        mySelections[gid] = { side: cur.side, weight };
+        renderCounterBar(); renderGamesHost();
+      });
+    });
+    const clearBtn = card.querySelector("[data-clear]");
+    if (clearBtn) clearBtn.addEventListener("click", () => { delete mySelections[gid]; renderCounterBar(); renderGamesHost(); });
+  });
+}
+
+function renderSubmitTab(){
+  renderFriendRow();
+  renderCounterBar();
+  renderGamesHost();
+}
+
+/* ---------------- Admin tab ---------------- */
+function renderAdminList(){
+  const weekInput = document.getElementById("adminWeekInput");
+  if (!weekInput) return;
+  const weekNum = parseInt(weekInput.value, 10);
+  const week = DATA.weeks.find(w => w.week === weekNum);
+  const host = document.getElementById("adminList");
+  if (!week || !week.games.length){ host.innerHTML = `<p class="mutednote">No games saved for Week ${weekNum} yet.</p>`; return; }
+  host.innerHTML = week.games.slice().sort((a,b)=>a.matchup.localeCompare(b.matchup)).map(g => {
+    const locked = isLocked(g);
+    return `
+    <div class="adminrow" data-game="${g.id}">
+      <span>${g.matchup} <span class="mutednote">(${g.spread})</span>${locked?' <span class="lockednote">🔒 locked</span>':''}</span>
+      <span class="kickoffwrap">
+        <input type="datetime-local" class="kickoffinput" data-kickoff="${g.id}" value="${g.kickoffAt?isoToLocalInput(g.kickoffAt):''}">
+        <button type="button" class="btn small" data-setkick="${g.id}">Set</button>
+        <button type="button" class="btn small danger" data-del="${g.id}">Delete</button>
+      </span>
+    </div>`;
+  }).join("");
+  host.querySelectorAll("[data-del]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try { await deleteGame(btn.dataset.del); } catch(e){ alert("Couldn't delete: " + e.message); btn.disabled = false; }
+    });
+  });
+  host.querySelectorAll("[data-setkick]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const gid = btn.dataset.setkick;
+      const input = host.querySelector(`[data-kickoff="${gid}"]`);
+      const val = input.value;
+      btn.disabled = true;
+      try {
+        await setGameField(gid, "kickoffAt", val ? new Date(val).toISOString() : fb.deleteField());
+      } catch(e){ alert("Couldn't set kickoff time: " + e.message); }
+      btn.disabled = false;
+    });
+  });
+}
+
+function renderAdminGate(){
+  const signedOut = document.getElementById("adminSignedOut");
+  const signedIn = document.getElementById("adminSignedIn");
+  if (!signedOut || !signedIn) return;
+  signedOut.style.display = isAdmin ? "none" : "block";
+  signedIn.style.display = isAdmin ? "block" : "none";
+}
+
+/* ---------------- wiring ---------------- */
+function renderAll(){
+  document.getElementById("poolTitle").textContent = POOL.poolName;
+  renderTiles(); renderCaptainTable(); renderLeaderboard(); renderTrend(); renderWeeks();
+  loadMySelectionsFromData(); renderSubmitTab();
+  renderAdminGate(); renderAdminList();
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("themeToggle").addEventListener("click", () => {
+    const root = document.documentElement;
+    root.setAttribute("data-theme", root.getAttribute("data-theme")==="dark" ? "light" : "dark");
+  });
+
+  document.querySelectorAll("nav.tabs button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("nav.tabs button").forEach(b=>b.classList.remove("active"));
+      document.querySelectorAll(".tabpanel").forEach(p=>p.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("tab-"+btn.dataset.tab).classList.add("active");
+    });
+  });
+
+  document.getElementById("friendRow").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-friend]");
+    if (!btn) return;
+    currentFriendId = btn.dataset.friend;
+    loadMySelectionsFromData();
+    renderSubmitTab();
+  });
+  document.getElementById("weekInput").addEventListener("change", (e) => {
+    currentWeek = parseInt(e.target.value, 10) || 1;
+    loadMySelectionsFromData();
+    renderSubmitTab();
+  });
+
+  document.getElementById("submitPicksBtn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("submitStatus");
+    if (!currentFriendId){ statusEl.textContent = "Pick who you are first."; return; }
+    if (!Object.keys(mySelections).length){ statusEl.textContent = "Pick at least one game first."; return; }
+    statusEl.textContent = "Submitting…";
+    try {
+      await submitPicksToDb(currentFriendId, currentWeek, mySelections);
+      statusEl.textContent = `Submitted ${Object.keys(mySelections).length} pick(s) for Week ${currentWeek}. You can resubmit anytime before kickoff to change them.`;
+    } catch (e) {
+      statusEl.textContent = "Couldn't submit: " + e.message;
+    }
+  });
+
+  document.getElementById("adminSignInBtn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("adminAuthStatus");
+    if (!authFns || !auth){ statusEl.textContent = "Auth isn't set up yet — see setup instructions."; return; }
+    const email = document.getElementById("adminEmail").value.trim();
+    const pw = document.getElementById("adminPassword").value;
+    if (!email || !pw){ statusEl.textContent = "Enter email and password."; return; }
+    statusEl.textContent = "Signing in…";
+    try {
+      await authFns.signInWithEmailAndPassword(auth, email, pw);
+      statusEl.textContent = "";
+      document.getElementById("adminPassword").value = "";
+    } catch (e) {
+      statusEl.textContent = "Sign-in failed: " + e.message;
+    }
+  });
+  document.getElementById("adminSignOutBtn").addEventListener("click", async () => {
+    if (!authFns || !auth) return;
+    try { await authFns.signOut(auth); } catch(e){}
+  });
+
+  document.getElementById("adminWeekInput").addEventListener("change", renderAdminList);
+  document.getElementById("saveGamesBtn").addEventListener("click", async () => {
+    const weekNum = parseInt(document.getElementById("adminWeekInput").value, 10);
+    const lines = document.getElementById("adminGamesInput").value.split("\n");
+    const statusEl = document.getElementById("adminStatus");
+    statusEl.textContent = "Saving…";
+    try {
+      const result = await saveWeekGames(weekNum, lines);
+      statusEl.textContent = `Saved ${result.count} game(s) for Week ${weekNum}.` + (result.bad ? ` ${result.bad} line(s) didn't match the format and were skipped.` : "");
+      document.getElementById("adminGamesInput").value = "";
+    } catch (e) {
+      statusEl.textContent = "Couldn't save: " + e.message;
+    }
+  });
+
+  document.getElementById("weeksHost").addEventListener("change", async (e) => {
+    const row = e.target.closest("tr[data-game]");
+    if (!row) return;
+    const gid = row.dataset.game;
+    try {
+      if (e.target.matches(".selChk")) await setGameField(gid, "selected", e.target.checked);
+      if (e.target.matches(".resSel")) await setGameField(gid, "result", e.target.value === "pending" ? null : e.target.value);
+    } catch (err) { alert("Couldn't save: " + err.message); }
+  });
+
+  document.getElementById("backupBtn").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify({ POOL, DATA }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "pickem-backup.json"; document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  boot();
+});
+
+async function boot(){
+  const ok = await initFirebase();
+  if (!ok){
+    document.getElementById("setupOnly").style.display = "block";
+    return;
+  }
+  document.getElementById("app").style.display = "block";
+  setConn(false, "Connecting…");
+  if (authFns && auth){
+    authFns.onAuthStateChanged(auth, user => {
+      isAdmin = !!user;
+      renderAdminGate(); renderAdminList(); renderWeeks();
+    });
+  }
+  try {
+    watchGames(() => { setConn(true, "Live"); renderAll(); });
+  } catch (e) {
+    setConn(false, "Connection error: " + e.message);
+  }
+}
+</script>
+</body>
+</html>
