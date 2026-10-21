@@ -184,7 +184,7 @@
       <div class="weekrow">
         <input type="number" class="weekinput" id="weekInput" min="1" max="18" value="1">
       </div>
-      <p class="cardsub" id="pickIntro">Pick your side on any games you have a real opinion on, then tag it Lean / Like / Love. Love is capped at 2, Like at 3 — the buttons lock once you hit the cap.</p>
+      <p class="cardsub" id="pickIntro">Pick your side on any games you have a real opinion on, then tag it Lean / Like / Love. Love is capped at 1, Like at 2 — the buttons lock once you hit the cap.</p>
     </div>
 
     <div class="counterbar" id="counterBar"></div>
@@ -206,7 +206,7 @@
       <p class="cardsub">Confidence-weighted group consensus, with a rotating tiebreaker captain.</p>
       <div class="instructions">
         <ol>
-          <li>Before kickoff, everyone submits independently on the Submit Picks tab — nobody can see anyone else's picks until they're in. Love is capped at 2, Like at 3, Lean is unlimited.</li>
+          <li>Before kickoff, everyone submits independently on the Submit Picks tab — nobody can see anyone else's picks until they're in. Love is capped at 1, Like at 2, Lean is unlimited.</li>
           <li>Every game gets a <strong>weighted score</strong>: add up the confidence points (Love=3, Like=2, Lean=1) on its more-popular side. Conviction counts, not just headcount.</li>
           <li>Games get ranked by weighted score and the <strong>top 5</strong> (marked <span class="rankpill">#1</span>) are the suggested entry.</li>
           <li>If several are tied at the cutoff, that week's <strong>Tiebreaker Captain</strong> — rotating round-robin all season — makes the call. Tick <strong>selected</strong> on exactly 5 games below.</li>
@@ -387,6 +387,14 @@ function matchedWinningSide(game, side){
 function captainForWeek(weekNum){ if (!POOL.friends.length) return null; return POOL.friends[(weekNum-1) % POOL.friends.length]; }
 
 function isLocked(g){ return !!g.kickoffAt && new Date(g.kickoffAt).getTime() <= Date.now(); }
+function sortGamesChrono(games){
+  return games.slice().sort((a,b) => {
+    const at = a.kickoffAt ? new Date(a.kickoffAt).getTime() : Infinity;
+    const bt = b.kickoffAt ? new Date(b.kickoffAt).getTime() : Infinity;
+    if (at !== bt) return at - bt;
+    return a.matchup.localeCompare(b.matchup);
+  });
+}
 function fmtKickoff(iso){
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
@@ -697,7 +705,7 @@ function tierCounts(){
 }
 function canSetWeight(gid, weight){
   if (weight !== 3 && weight !== 2) return true;
-  const cap = weight===3 ? 2 : 3;
+  const cap = weight===3 ? 1 : 2;
   const cur = mySelections[gid];
   if (cur && cur.weight === weight) return true;
   const counts = tierCounts();
@@ -722,8 +730,8 @@ function renderFriendRow(){
 function renderCounterBar(){
   const c = tierCounts();
   document.getElementById("counterBar").innerHTML = `
-    <span class="cchip love ${c.love>=2?'full':''}">❤ Love ${c.love}/2</span>
-    <span class="cchip like ${c.like>=3?'full':''}">👍 Like ${c.like}/3</span>
+    <span class="cchip love ${c.love>=1?'full':''}">❤ Love ${c.love}/1</span>
+    <span class="cchip like ${c.like>=2?'full':''}">👍 Like ${c.like}/2</span>
     <span class="cchip">〰 Lean ${c.lean}</span>
     <span class="spacer"></span>`;
 }
@@ -731,7 +739,7 @@ function renderCounterBar(){
 function renderGamesHost(){
   const host = document.getElementById("gamesHost");
   const week = DATA.weeks.find(w => w.week === currentWeek);
-  const games = week ? week.games.slice().sort((a,b)=> a.matchup.localeCompare(b.matchup)) : [];
+  const games = week ? sortGamesChrono(week.games) : [];
   if (!games.length){
     host.innerHTML = `<p class="mutednote">No games set up for Week ${currentWeek} yet — ask whoever's running the pool to add them in the Admin tab.</p>`;
     return;
@@ -807,7 +815,7 @@ function renderAdminList(){
   const week = DATA.weeks.find(w => w.week === weekNum);
   const host = document.getElementById("adminList");
   if (!week || !week.games.length){ host.innerHTML = `<p class="mutednote">No games saved for Week ${weekNum} yet.</p>`; return; }
-  host.innerHTML = week.games.slice().sort((a,b)=>a.matchup.localeCompare(b.matchup)).map(g => {
+  host.innerHTML = sortGamesChrono(week.games).map(g => {
     const locked = isLocked(g);
     return `
     <div class="adminrow" data-game="${g.id}">
@@ -975,3 +983,4 @@ async function boot(){
 </script>
 </body>
 </html>
+
